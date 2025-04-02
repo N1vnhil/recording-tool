@@ -40,6 +40,9 @@
         <div class="character-display">
           我念"{{ currentCharacter }}"字给你听
         </div>
+        <div class="counter-display">
+          已录制: {{ nextCounter }}/50
+        </div>
   
         <!-- 传递 currentIdx 和 username 到 Recording 组件 -->
         <Recording 
@@ -63,6 +66,7 @@ const csvData = ref([]); // 存储CSV数据
 const headers = ref([]); // 存储CSV头部信息
 const currentIdx = ref(0); // 当前遍历到的索引
 const recordingRef = ref(null); // 添加对 Recording 组件的引用
+const nextCounter = ref(0); // 记录Next点击次数
 
 // 设置用户名
 function setUsername() {
@@ -80,6 +84,7 @@ function changeUsername() {
   csvData.value = [];
   headers.value = [];
   currentIdx.value = 0;
+  nextCounter.value = 0;
 }
 
 // 计算属性：获取当前的character值
@@ -108,13 +113,24 @@ function loadCsv() {
     .catch(error => console.error('Error loading CSV file:', error));
 }
 
-function nextCharacter() {
+async function nextCharacter() {
+  // 检查是否达到50次
+  if (nextCounter.value >= 50) {
+    const shouldContinue = confirm('您已经录制了50个字符，是否继续？');
+    if (!shouldContinue) {
+      return;
+    }
+    // 重置计数器
+    nextCounter.value = 0;
+  }
+
   if (currentIdx.value < csvData.value.length - 1) {
     // 如果正在录音，先停止并保存当前录音，然后开始新的录音
     if (recordingRef.value && recordingRef.value.isRecording) {
       recordingRef.value.stopAndSaveRecording();
     }
     currentIdx.value++;
+    nextCounter.value++;
     // 开始新的录音
     if (recordingRef.value) {
       recordingRef.value.startRecording();
@@ -129,13 +145,20 @@ function prevCharacter() {
       recordingRef.value.stopAndSaveRecording();
     }
     currentIdx.value--;
+    // 减少计数器，但不小于0
+    nextCounter.value = Math.max(0, nextCounter.value - 1);
   }
 }
 </script>
 
-<!-- 样式部分保持不变 -->
-  
 <style scoped>
+/* 新增计数器样式 */
+.counter-display {
+  margin: 0.5rem 0;
+  font-size: 1rem;
+  color: #666;
+}
+
 .username-input {
   margin-bottom: 2rem;
   display: flex;
