@@ -1,7 +1,6 @@
 <!-- Recording.vue -->
 <template>
   <div>
-    <!-- 设备选择 -->
     <div class="device-selector">
       <label for="audioDevice">录音设备：</label>
       <select 
@@ -16,7 +15,6 @@
       </select>
     </div>
 
-    <!-- 录音控制 -->
     <button 
       @click="toggleRecording" 
       :class="{ recording: isRecording }"
@@ -25,7 +23,6 @@
       {{ isRecording ? '停止录音' : '开始录音' }}
     </button>
 
-    <!-- 音频播放器 -->
     <audio v-if="audioUrl" controls class="audio-player">
       <source :src="audioUrl" type="audio/wav">
       您的浏览器不支持音频播放
@@ -61,7 +58,6 @@ const audioUrl = ref(null);
 const error = ref(null);
 const isMediaRecorderReady = ref(false);
 
-// 获取录音设备列表
 async function getAudioDevices() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -84,33 +80,37 @@ async function handleDeviceChange() {
   await initializeMediaRecorder();
 }
 
+// 修复后的 convertToWav 函数
 function convertToWav(audioBuffer) {
   const numberOfChannels = 1;
-  const sampleRate = 16000; // 使用16kHz采样率
+  const sampleRate = 16000;
   const bitsPerSample = 16;
   
-  const buffer = new ArrayBuffer(44 + audioBuffer.length);
+  const buffer = new ArrayBuffer(44 + audioBuffer.length * 2); // 16位需要2字节
   const view = new DataView(buffer);
   
+  // RIFF chunk descriptor
   writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + audioBuffer.length, true);
+  view.setUint32(4, 36 + audioBuffer.length * 2, true); // 文件大小 - 8
   writeString(view, 8, 'WAVE');
   
+  // fmt sub-chunk
   writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numberOfChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numberOfChannels * (bitsPerSample / 8), true);
-  view.setUint16(32, numberOfChannels * (bitsPerSample / 8), true);
-  view.setUint16(34, bitsPerSample, true);
+  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+  view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+  view.setUint16(22, numberOfChannels, true); // NumChannels
+  view.setUint32(24, sampleRate, true); // SampleRate
+  view.setUint32(28, sampleRate * numberOfChannels * (bitsPerSample / 8), true); // ByteRate
+  view.setUint16(32, numberOfChannels * (bitsPerSample / 8), true); // BlockAlign
+  view.setUint16(34, bitsPerSample, true); // BitsPerSample
   
+  // data sub-chunk
   writeString(view, 36, 'data');
-  view.setUint32(40, audioBuffer.length, true);
+  view.setUint32(40, audioBuffer.length * 2, true); // Subchunk2Size
   
-  const offset = 44;
+  // 写入 PCM 数据
   for (let i = 0; i < audioBuffer.length; i++) {
-    view.setUint8(offset + i, audioBuffer[i]);
+    view.setInt16(44 + i * 2, audioBuffer[i], true); // 16位有符号整数
   }
   
   return buffer;
@@ -122,7 +122,6 @@ function writeString(view, offset, string) {
   }
 }
 
-// 重采样函数
 function resampleAudio(audioBuffer, targetSampleRate) {
   const sourceSampleRate = audioBuffer.sampleRate;
   const sourceLength = audioBuffer.length;
@@ -135,7 +134,6 @@ function resampleAudio(audioBuffer, targetSampleRate) {
     const index2 = Math.min(index1 + 1, sourceLength - 1);
     const fraction = sourceIndex - index1;
     
-    // 线性插值
     outputBuffer[i] = (1 - fraction) * audioBuffer.getChannelData(0)[index1] +
                       fraction * audioBuffer.getChannelData(0)[index2];
   }
@@ -143,7 +141,6 @@ function resampleAudio(audioBuffer, targetSampleRate) {
   return outputBuffer;
 }
 
-// 自动下载功能
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -164,7 +161,7 @@ async function initializeMediaRecorder() {
       audio: {
         deviceId: selectedDevice.value ? { exact: selectedDevice.value } : undefined,
         channelCount: 1,
-        sampleRate: 16000, // 使用16kHz采样率
+        sampleRate: 16000,
         sampleSize: 16
       }
     };
@@ -185,16 +182,14 @@ async function initializeMediaRecorder() {
         const audioContext = new AudioContext();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         
-        // 重采样到16kHz
         const resampledData = resampleAudio(audioBuffer, 16000);
         
-        // 转换为16位整数
         const samples = new Int16Array(resampledData.length);
         for (let i = 0; i < resampledData.length; i++) {
           samples[i] = Math.max(-1, Math.min(1, resampledData[i])) * 32767;
         }
         
-        const wavBuffer = convertToWav(new Uint8Array(samples.buffer));
+        const wavBuffer = convertToWav(samples);
         const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
         
         if (audioUrl.value) {
@@ -202,7 +197,6 @@ async function initializeMediaRecorder() {
         }
         audioUrl.value = URL.createObjectURL(wavBlob);
 
-        // 自动下载
         downloadBlob(wavBlob, `recording_${props.currentIdx}.wav`);
         
         audioChunks = [];
@@ -240,7 +234,7 @@ function toggleRecording() {
 }
 
 function startRecording() {
-  if (mediaRecorder.state === 'inactive') {
+  if (mediaRecorder && mediaRecorder.state === 'inactive') {
     audioChunks = [];
     audioUrl.value = null;
     isRecording.value = true;
@@ -250,11 +244,23 @@ function startRecording() {
 }
 
 function stopRecording() {
-  if (mediaRecorder.state === 'recording') {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
     isRecording.value = false;
     mediaRecorder.stop();
   }
 }
+
+function stopAndSaveRecording() {
+  if (isRecording.value) {
+    stopRecording();
+  }
+}
+
+defineExpose({
+  startRecording,
+  stopAndSaveRecording,
+  isRecording
+});
 
 navigator.mediaDevices.addEventListener('devicechange', getAudioDevices);
 
