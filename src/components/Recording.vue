@@ -1,3 +1,4 @@
+<!-- Recording.vue -->
 <template>
   <div>
     <!-- 设备选择 -->

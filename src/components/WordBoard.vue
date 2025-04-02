@@ -1,3 +1,4 @@
+<!-- WordBoard.vue -->
 <template>
     <div>
       <!-- 用户名输入 -->
