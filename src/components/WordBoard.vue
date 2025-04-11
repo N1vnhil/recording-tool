@@ -40,6 +40,12 @@
         <div class="character-display">
           我念"{{ currentCharacter }}"字
         </div>
+        <div v-if="currentIdx < 5" class="tips">
+          你可以用前五个字符熟悉录音流程。练习：{{ currentIdx + 1 }} / 5
+        </div>
+        <div v-else class="tips">
+          测试进行中，共需录制270个汉字。
+        </div>
         <div class="counter-display">
           已录制: {{ nextCounter }}/50
         </div>
@@ -47,8 +53,7 @@
         <!-- 传递 currentIdx 和 username 到 Recording 组件 -->
         <Recording 
           ref="recordingRef"
-          :currentIdx="currentIdx"
-          :username="username"
+          :filename="getSavedFilename()"
         />
       </div>
     </div>
@@ -87,17 +92,22 @@ function changeUsername() {
   nextCounter.value = 0;
 }
 
-// 计算属性：获取当前的character值
 const currentCharacter = computed(() => {
-  if (headers.value.includes('character') && csvData.value.length > 0) {
-    const characterIdx = headers.value.indexOf('character');
-    return csvData.value[currentIdx.value][characterIdx];
-  }
-  return null;
+  const characterIdx = headers.value.indexOf('character');
+  return csvData.value[currentIdx.value][characterIdx];
 });
 
+const currentRep  = computed(() => {
+  const characterIdx = headers.value.indexOf('Rep');
+  return csvData.value[currentIdx.value][characterIdx];
+});
+
+function getSavedFilename() {
+  return username.value + "_" + currentCharacter.value + "_" + currentRep.value + ".wav";
+}
+
 function loadCsv() {
-  const url = new URL('../../public/20250309_YY.csv', import.meta.url).href;
+  const url = new URL('../../public/20250411_YY.csv', import.meta.url).href;
   fetch(url)
     .then(response => response.text())
     .then(data => {
@@ -113,40 +123,40 @@ function loadCsv() {
     .catch(error => console.error('Error loading CSV file:', error));
 }
 
-async function nextCharacter() {
+function nextCharacter() {
   // 检查是否达到50次
   if (nextCounter.value >= 50) {
     const shouldContinue = confirm('您已经录制了50个字符，是否继续？');
     if (!shouldContinue) {
       return;
     }
-    // 重置计数器
     nextCounter.value = 0;
   }
 
-  if (currentIdx.value < csvData.value.length - 1) {
-    // 如果正在录音，先停止并保存当前录音，然后开始新的录音
-    if (recordingRef.value && recordingRef.value.isRecording) {
-      recordingRef.value.stopAndSaveRecording();
-    }
-    currentIdx.value++;
-    nextCounter.value++;
-    // 开始新的录音
-    if (recordingRef.value) {
-      recordingRef.value.startRecording();
-    }
+  if (recordingRef.value && recordingRef.value.isRecording) {
+    console.log("当前：" + currentIdx.value);
+    recordingRef.value.stopAndSaveRecording(getSavedFilename());
+  } 
+  
+  currentIdx.value++;
+  nextCounter.value++;
+
+  if (recordingRef.value) {
+    recordingRef.value.startRecording();
   }
 }
 
 function prevCharacter() {
-  if (currentIdx.value > 0) {
-    // 如果正在录音，先停止并保存
-    if (recordingRef.value && recordingRef.value.isRecording) {
-      recordingRef.value.stopAndSaveRecording();
-    }
-    currentIdx.value--;
-    // 减少计数器，但不小于0
-    nextCounter.value = Math.max(0, nextCounter.value - 1);
+  // 如果正在录音，先停止并保存
+  if (recordingRef.value && recordingRef.value.isRecording) {
+    const t = getSavedFilename();
+    recordingRef.value.stopAndSaveRecording(t);
+  } 
+
+  currentIdx.value--;
+
+  if (recordingRef.value) {
+    recordingRef.value.startRecording();
   }
 }
 </script>
@@ -219,7 +229,7 @@ function prevCharacter() {
 }
 
 .character-display {
-  font-size: 1.2rem;
+  font-size: xx-large;
   margin: 1rem 0;
   padding: 1rem;
   background-color: #f5f5f5;
@@ -243,5 +253,10 @@ button:disabled {
 
 button:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.tips {
+  font-size: large;
+  color: red;
 }
 </style>

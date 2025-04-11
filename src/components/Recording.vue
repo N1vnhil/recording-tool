@@ -36,12 +36,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
-  currentIdx: {
-    type: Number,
-    required: true,
-    default: 0
-  },
-  username: {
+  filename: {
     type: String,
     required: true
   }
@@ -52,6 +47,7 @@ const selectedDevice = ref('');
 let mediaRecorder = null;
 let mediaStream = null;
 let audioChunks = [];
+let savedFilename = null;
 
 const isRecording = ref(false);
 const audioUrl = ref(null);
@@ -146,7 +142,7 @@ function downloadBlob(blob, filename) {
   const a = document.createElement('a');
   a.style.display = 'none';
   a.href = url;
-  a.download = `${props.username}_${filename}`;
+  a.download = `${filename}`;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => {
@@ -197,7 +193,7 @@ async function initializeMediaRecorder() {
         }
         audioUrl.value = URL.createObjectURL(wavBlob);
 
-        downloadBlob(wavBlob, `recording_${props.currentIdx}.wav`);
+        downloadBlob(wavBlob, `${savedFilename}`);
         
         audioChunks = [];
       } catch (err) {
@@ -223,6 +219,7 @@ function toggleRecording() {
 
   try {
     if (isRecording.value) {
+      savedFilename = props.filename;
       stopRecording();
     } else {
       startRecording();
@@ -250,8 +247,9 @@ function stopRecording() {
   }
 }
 
-function stopAndSaveRecording() {
+function stopAndSaveRecording(filename) {
   if (isRecording.value) {
+    savedFilename = filename;
     stopRecording();
   }
 }
