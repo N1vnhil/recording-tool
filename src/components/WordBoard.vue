@@ -38,7 +38,7 @@
           <button @click="nextCharacter" :disabled="currentIdx >= csvData.length - 1">Next</button>
         </div>
         <div class="character-display">
-          我念"{{ currentCharacter }}"字给你听
+          我念"{{ currentCharacter }}"字
         </div>
         <div class="counter-display">
           已录制: {{ nextCounter }}/50
